@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>基金盯盘 · FundVal</title>
+<style>
+  :root{
+    --up:#E24B4A; --down:#1D9E75; --flat:#888780;
+    --bg:#ffffff; --bg2:#F7F6F3; --line:rgba(0,0,0,.10);
+    --tx:#2C2C2A; --tx2:#5F5E5A; --tx3:#888780;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg2);color:var(--tx);
+       font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+       -webkit-text-size-adjust:100%}
+  .wrap{max-width:760px;margin:0 auto;padding:14px 14px 80px;min-width:0}
+  /* 手机上别让任何子元素把整页撑宽（表格在 .tw 里自己横向滚） */
+  body{overflow-x:hidden}
+
+  header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  h1{font-size:18px;font-weight:600;margin:0}
+  h1 small{font-size:11px;font-weight:400;color:var(--tx3);margin-left:6px}
+  .badge{font-size:12px;padding:3px 9px;border-radius:6px;background:#fff;border:1px solid var(--line);color:var(--tx2)}
+  .badge.live{background:#E1F5EE;border-color:#9FE1CB;color:#0F6E56}
+  .badge.rest{background:#F1EFE8;border-color:#D3D1C7}
+  .spacer{flex:1}
+  .meta{font-size:12px;color:var(--tx3)}
+  button{font:inherit;font-size:13px;padding:6px 14px;border-radius:8px;cursor:pointer;
+         background:#fff;border:1px solid var(--line);color:var(--tx)}
+  button:hover{border-color:rgba(0,0,0,.25)}
+  button:disabled{opacity:.5;cursor:default}
+  button.primary{background:var(--tx);color:#fff;border-color:var(--tx)}
+
+  .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line);overflow-x:auto}
+  .tab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 12px;
+       font-size:13px;color:var(--tx2);cursor:pointer;border-radius:0;margin-bottom:-1px;white-space:nowrap}
+  .tab:hover{color:var(--tx)}
+  .tab.on{color:var(--tx);border-bottom-color:var(--tx);font-weight:600}
+  .tab .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;
+            background:#C9C8C2;vertical-align:1px}
+  .tab .dot.ok{background:#1D9E75}
+  .tab .dot.bad{background:#E24B4A}
+
+  .subtabs{display:flex;gap:8px;margin-bottom:12px}
+  .subtabs .tab{padding:6px 12px;font-size:13px;border:1px solid var(--line);border-bottom:2px solid transparent;border-radius:8px}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+         gap:10px;margin-bottom:16px;min-width:0}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+        min-width:0;overflow:hidden}
+  .card .lb{font-size:12px;color:var(--tx2);margin-bottom:5px}
+  .card .vl{font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+  .card .sub{font-size:11px;color:var(--tx3);margin-top:3px}
+
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+  .muted{color:#B9B8B2}
+  .errGood{color:#1D9E75;font-weight:500}
+  .errMid{color:#B9811F;font-weight:500}
+  .errBad{color:#D24B3E;font-weight:500}
+
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px}
+  .panel h2{font-size:14px;font-weight:600;margin:0;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .panel h2 .right{float:right;font-weight:400;font-size:12px;color:var(--tx3)}
+  .panel h3{font-size:13px;font-weight:600;margin:0;padding:10px 14px;color:var(--tx2)}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .two-col>div:first-child{border-right:1px solid var(--line)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:right;font-weight:500;color:var(--tx2);font-size:12px;padding:9px 12px;
+     border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:11px 12px;border-bottom:1px solid rgba(0,0,0,.055);text-align:right;white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#FAFAF8}
+  .fname{font-weight:500}
+  .fcode{font-size:11px;color:var(--tx3);font-variant-numeric:tabular-nums}
+  .num{font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:5px;
+       border:1px solid var(--line);color:var(--tx2);margin-left:6px}
+  .tag.ok{background:#E1F5EE;border-color:#9FE1CB;color:#0F6E56}
+  .tag.pen{background:#FAEEDA;border-color:#FAC775;color:#854F0B}
+  .tag.qdii{background:#E6F0FB;border-color:#A8CBEF;color:#185FA5}
+  .tag.settled{background:#F1EFE8}
+  .tag.buy{background:#E1F5EE;border-color:#9FE1CB;color:#0F6E56}
+  .tag.sell{background:#FBE9E9;border-color:#F3B6B6;color:#9B2C2C}
+  .del{background:none;border:none;color:var(--tx3);cursor:pointer;padding:2px 6px;font-size:15px}
+  .del:hover{color:var(--up)}
+  .rank{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:6px;
+        background:#F1EFE8;color:var(--tx2);font-size:12px;font-weight:600;margin-right:8px}
+
+  .bar{height:3px;border-radius:2px;background:rgba(0,0,0,.07);margin-top:5px;overflow:hidden;min-width:50px}
+  .bar i{display:block;height:100%;background:#B8D4EE}
+
+  .form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:12px 14px}
+  .fld{display:flex;flex-direction:column;gap:5px;position:relative}
+  .fld label{font-size:12px;color:var(--tx2)}
+  input,select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);
+        border-radius:8px;background:#fff;color:var(--tx);width:140px}
+  input:focus,select:focus{outline:2px solid rgba(55,138,221,.35);outline-offset:-1px;border-color:#378ADD}
+  .sug{position:absolute;top:100%;left:0;right:0;margin-top:3px;background:#fff;z-index:20;
+       border:1px solid var(--line);border-radius:8px;max-height:220px;overflow:auto;display:none;
+       box-shadow:0 4px 14px rgba(0,0,0,.08)}
+  .sug div{padding:8px 11px;cursor:pointer;font-size:13px}
+  .sug div:hover{background:#F7F6F3}
+
+  .empty{padding:28px 14px;text-align:center;color:var(--tx3);font-size:13px}
+  .note{font-size:12px;color:var(--tx3);padding:0 14px 12px;line-height:1.7}
+  .err{background:#FCEBEB;border:1px solid #F7C1C1;color:#791F1F;padding:11px 14px;
+       border-radius:10px;margin-bottom:14px;font-size:13px;display:none}
+  .warn{background:#FAEEDA;border:1px solid #FAC775;color:#854F0B;padding:11px 14px;
+        border-radius:10px;margin-bottom:14px;font-size:13px;display:none;line-height:1.7}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:none;border-radius:0;padding:6px 14px;background:#fff}
+  .seg button.on{background:var(--tx);color:#fff}
+
+  /* 注意：这里必须用 width:100% 而不是 max-width:100%。
+     max-width:100% 会让 block 盒子走 shrink-to-fit，宽度按内容塌缩
+     （实测横评表塌成 54px，表格被裁得只剩一列）。 */
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
+  .tw table{font-size:12.5px}
+  .tw th,.tw td{padding:6px 8px}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--tx2);margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:4px}
+  .legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+  .cat-sub{font-size:11px;color:var(--tx3)}
+  @media (max-width:460px){
+    .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+    /* 窄屏优先留最关键的列，其余横向滚动才看得到 */
+    .c-idx th:nth-child(2),.c-idx td:nth-child(2),
+    .c-idx th:nth-child(5),.c-idx td:nth-child(5),
+    .c-idx th:nth-child(7),.c-idx td:nth-child(7){display:none}
+    .c-fund th:nth-child(4),.c-fund td:nth-child(4),
+    .c-bond th:nth-child(5),.c-bond td:nth-child(5){display:none}
+    .card .vl{font-size:19px}
+    .card .lb{font-size:11px}
+    .card .sub{font-size:10.5px}
+    .wrap{padding:12px 10px 70px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>基金盯盘<small>FundVal 移动版</small></h1>
+    <span class="badge rest" id="phase">加载中</span>
+    <span class="spacer"></span>
+    <span class="meta" id="updated"></span>
+    <button id="refresh">刷新</button>
+  </header>
+
+  <div class="tabs" id="topTabs">
+    <button class="tab" data-tab="hold">持仓</button>
+    <button class="tab" data-tab="rank">排行</button>
+    <button class="tab" data-tab="search">搜索</button>
+    <button class="tab" data-tab="ledger">记账</button>
+    <button class="tab" data-tab="acc">准确度</button>
+    <button class="tab" data-tab="cat">品类</button>
+  </div>
+
+  <div class="err" id="err"></div>
+
+  <!-- ===================== 持仓 ===================== -->
+  <section id="sec-hold">
+    <div class="subtabs">
+      <button class="tab" id="tab-real">真实持仓 · 天天基金<span class="dot" id="dot-real"></span></button>
+      <button class="tab" id="tab-manual">自建持仓</button>
+    </div>
+    <div class="warn" id="warn"></div>
+    <div class="cards">
+      <div class="card">
+        <div class="lb" id="lb-mv">持仓市值</div>
+        <div class="vl num" id="s-mv">--</div>
+        <div class="sub" id="s-cost">成本 --</div>
+        <div class="sub"><span id="s-count">--</span> · <span id="s-src">--</span></div>
+      </div>
+      <div class="card">
+        <div class="lb">当日收益</div>
+        <div class="vl num" id="s-day">--</div>
+        <div class="sub" id="s-daypct">--</div>
+      </div>
+      <div class="card">
+        <div class="lb">累计收益</div>
+        <div class="vl num" id="s-total">--</div>
+        <div class="sub" id="s-totalpct">--</div>
+      </div>
+      <div class="card">
+        <div class="lb">估值准确度</div>
+        <div class="vl num" id="s-acc">--</div>
+        <div class="sub" id="s-accdesc">--</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>持仓明细<span class="right" id="tbl-right"></span></h2>
+      <table id="tbl">
+        <thead><tr>
+          <th>基金</th><th>盘中估价</th><th>收盘价</th><th>估差</th>
+          <th>当日</th><th>累计</th><th>市值</th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="panel" id="panel-add">
+      <h2>添加持仓</h2>
+      <div class="form">
+        <div class="fld">
+          <label>基金名称或代码</label>
+          <input id="kw" placeholder="如：易方达消费 / 110022" autocomplete="off">
+          <div class="sug" id="sug"></div>
+        </div>
+        <div class="fld"><label>持有份额</label><input id="shares" type="number" step="0.01" placeholder="10000"></div>
+        <div class="fld"><label>成本单价</label><input id="cost" type="number" step="0.0001" placeholder="3.1000"></div>
+        <button class="primary" id="add">添加</button>
+      </div>
+      <div class="note">
+        科学估值：优先天天基金官方盘中估算（「官方估值」）；官方不提供时自动改用十大重仓穿透估算
+        （「穿透估算」）；收盘后显示已公布净值（「已收盘」）。<b>估差</b>=盘中估价涨跌−收盘价涨跌，
+        越接近 0 越准。晚上净值公布后自动配对算出<b>今日实测</b>误差。
+      </div>
+    </div>
+    <div class="panel" id="panel-real" style="display:none">
+      <h2>账户说明</h2>
+      <div class="note" style="padding-top:12px">
+        持仓来自天天基金账户（真实结算市值/份额/累计收益，不可手动改）。
+        境内基金交易时段用官方盘中估值；QDII 净值滞后 1~2 天，当日收益显示最近结算日实际数，
+        另附标的指数实时涨跌作参考（「参考」）。
+      </div>
+      <div class="form">
+        <button id="sync">用真实持仓覆盖自建列表</button>
+        <span class="meta" id="sync-msg"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 排行 ===================== -->
+  <section id="sec-rank" style="display:none">
+    <div class="panel">
+      <h2>当日收益排行</h2>
+      <table><tbody id="rank-day"><tr><td colspan="4" class="empty">加载中…</td></tr></tbody></table>
+    </div>
+    <div class="panel">
+      <h2>累计收益排行</h2>
+      <table><tbody id="rank-hold"><tr><td colspan="4" class="empty">加载中…</td></tr></tbody></table>
+    </div>
+    <div class="panel">
+      <h2>估值准·偏榜<span class="right">基于历史盘中快照实测</span></h2>
+      <div class="two-col">
+        <div>
+          <h3>最准（偏差小）</h3>
+          <table><tbody id="rank-best"><tr><td colspan="3" class="empty">样本不足</td></tr></tbody></table>
+        </div>
+        <div>
+          <h3>最偏（偏差大）</h3>
+          <table><tbody id="rank-worst"><tr><td colspan="3" class="empty">样本不足</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 搜索 ===================== -->
+  <section id="sec-search" style="display:none">
+    <div class="panel">
+      <h2>基金搜索</h2>
+      <div class="form">
+        <div class="fld">
+          <label>名称 / 代码 / 拼音</label>
+          <input id="skw" placeholder="如：消费 / 011609" autocomplete="off">
+          <div class="sug" id="ssug"></div>
+        </div>
+      </div>
+      <table><tbody id="search-res"><tr><td colspan="3" class="empty">输入关键字搜索基金</td></tr></tbody></table>
+    </div>
+    <div class="panel" id="detail" style="display:none">
+      <h2 id="detail-title">详情</h2>
+      <div id="detail-body" style="padding:0 14px 14px"></div>
+    </div>
+  </section>
+
+  <!-- ===================== 记账 ===================== -->
+  <section id="sec-ledger" style="display:none">
+    <div class="cards" id="ledger-cards">
+      <div class="card"><div class="lb">累计买入</div><div class="vl num">--</div></div>
+      <div class="card"><div class="lb">累计卖出</div><div class="vl num">--</div></div>
+      <div class="card"><div class="lb">净投入</div><div class="vl num">--</div></div>
+    </div>
+    <div class="panel">
+      <h2>记一笔</h2>
+      <div class="form">
+        <div class="fld"><label>日期</label><input id="l-date" type="date"></div>
+        <div class="fld">
+          <label>基金</label>
+          <input id="lkw" placeholder="代码或名称" autocomplete="off">
+          <div class="sug" id="lsug"></div>
+        </div>
+        <div class="fld"><label>方向</label>
+          <div class="seg"><button id="l-buy" class="on" type="button">买入</button>
+          <button id="l-sell" type="button">卖出</button></div>
+        </div>
+        <div class="fld"><label>份额</label><input id="l-shares" type="number" step="0.01" placeholder="1000"></div>
+        <div class="fld"><label>单价</label><input id="l-price" type="number" step="0.0001" placeholder="1.2345"></div>
+        <div class="fld"><label>备注</label><input id="l-note" placeholder="可选"></div>
+        <button class="primary" id="l-add">保存</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>流水<span class="right" id="l-count"></span></h2>
+      <table><tbody id="ledger-tbl"><tr><td colspan="6" class="empty">还没有记账</td></tr></tbody></table>
+    </div>
+  </section>
+
+  <!-- ===================== 准确度 ===================== -->
+  <section id="sec-acc" style="display:none">
+    <div class="cards" id="acc-cards">
+      <div class="card"><div class="lb">组合平均偏差 MAE</div><div class="vl num" id="a-mae">--</div><div class="sub" id="a-mae-sub">样本不足</div></div>
+      <div class="card"><div class="lb">样本</div><div class="vl num" id="a-n">--</div><div class="sub" id="a-n-sub">--</div></div>
+      <div class="card"><div class="lb">系统性偏差</div><div class="vl num" id="a-bias">--</div><div class="sub" id="a-bias-sub">--</div></div>
+      <div class="card"><div class="lb">最准时点</div><div class="vl num" id="a-best">--</div><div class="sub" id="a-best-sub">--</div></div>
+    </div>
+    <div class="panel">
+      <h2>逐只基金准确度</h2>
+      <table><tbody id="acc-tbl"><tr><td colspan="5" class="empty">样本不足，开盘后开始累计</td></tr></tbody></table>
+    </div>
+  </section>
+
+  <!-- ===================== 品类 ===================== -->
+  <section id="sec-cat">
+    <div class="subtabs">
+      <button class="tab on" id="tab-cat-div">红利低波</button>
+      <button class="tab" id="tab-cat-bond">债券</button>
+    </div>
+    <div class="warn" id="cat-msg"></div>
+
+    <div id="cat-div">
+      <div class="cards">
+        <div class="card">
+          <div class="lb">红利温度</div>
+          <div class="vl num" id="cd-temp">--</div>
+          <div class="sub" id="cd-temp-sub">--</div>
+        </div>
+        <div class="card">
+          <div class="lb">历史分位</div>
+          <div class="vl num" id="cd-pct">--</div>
+          <div class="sub" id="cd-pct-sub">--</div>
+        </div>
+        <div class="card">
+          <div class="lb">20 日均线</div>
+          <div class="vl num" id="cd-ma">--</div>
+          <div class="sub" id="cd-ma-sub">--</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>红利低波指数<span class="right" id="cd-idx-sub"></span></h2>
+        <div class="tw"><table class="c-idx"><thead><tr><th>指数</th><th>基金</th><th>成分</th>
+          <th>前十大</th><th>PE</th><th>PE5Y分位</th><th>PB5Y分位</th><th>估值</th>
+        </tr></thead><tbody id="cd-idx"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <h2>基金横评 · 哪只更好<span class="right" id="cd-fund-sub"></span></h2>
+        <div class="tw"><table class="c-fund"><thead><tr><th>基金</th><th>规模</th>
+          <th>费率</th><th>跟踪误差</th><th>得分</th>
+        </tr></thead><tbody id="cd-fund"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <h2>同起点走势 · 累计净值归一化<span class="right" id="cd-trend-sub"></span></h2>
+        <div id="cd-trend"></div>
+      </div>
+      <div class="panel">
+        <h2>各温度档位 1 年持有期表现</h2>
+        <div class="tw"><table><thead><tr><th>档位</th><th>描述</th>
+          <th>1年平均收益</th><th>胜率</th>
+        </tr></thead><tbody id="cd-backtest"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <h2>温度信号映射</h2>
+        <div class="tw"><table><thead><tr><th>档位</th><th>信号含义</th>
+          <th>配置方向</th></tr></thead><tbody id="cd-signal"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="cat-bond" style="display:none">
+      <div class="cards">
+        <div class="card">
+          <div class="lb">债市天气</div>
+          <div class="vl" id="cb-w">--</div>
+          <div class="sub" id="cb-w-sub">--</div>
+        </div>
+        <div class="card">
+          <div class="lb">利率债</div>
+          <div class="vl" id="cb-r">--</div>
+          <div class="sub">各期限 BP 变动</div>
+        </div>
+        <div class="card">
+          <div class="lb">信用债</div>
+          <div class="vl" id="cb-c">--</div>
+          <div class="sub">各期限 BP 变动</div>
+        </div>
+      </div>
+      <div class="panel" id="cb-tables-p" style="display:none">
+        <h2>各期限 BP 变动</h2>
+        <div id="cb-tables"></div>
+      </div>
+      <div class="panel">
+        <h2>债券型全市场分布<span class="right" id="cb-dist-sub"></span></h2>
+        <div class="tw"><table><thead><tr><th>细分</th><th>只数</th><th>占比</th>
+          <th>有横评指标</th></tr></thead><tbody id="cb-dist"></tbody></table></div>
+      </div>
+      <div id="cb-groups"></div>
+      <div class="panel" id="cb-blind-p" style="display:none">
+        <h2>条件选基未开放指标的细分</h2>
+        <div class="note" id="cb-blind"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ==== 静态版适配层（自动注入，勿手改）==== */
+/* 静态版看板适配层。
+ *
+ * 原理：不动看板自己的代码，只把 window.fetch 劫持掉 —— 指向 /api/* 的请求
+ * 改成从本地静态包里应答。加密的包用 URL fragment 里的密钥解开。
+ *
+ * fragment 形如  #cat&k=<base64url密钥>
+ *   · "cat" 是看板自己的标签锚点
+ *   · "k=" 是本层加的密钥。fragment 不会随 HTTP 请求发给服务器，
+ *     所以静态托管方永远看不到密钥。
+ */
+(function () {
+  'use strict';
+
+  var ORIGINAL_FETCH = window.fetch.bind(window);
+
+  // ---- 从 fragment 里取密钥（不改动 fragment，看板自己的 #cat 照常工作）----
+  function getKey() {
+    var h = location.hash || '';
+    var m = h.match(/[&?]k=([^&]+)/);
+    if (!m) return null;
+    try {
+      return base64ToBytes(decodeURIComponent(m[1]));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function base64ToBytes(b64) {
+    var bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function bytesToBase64(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  // ---- 密钥从哪来：优先 URL fragment，其次 localStorage（第一次访问后记住）----
+  function resolveKey() {
+    var k = getKey();
+    if (k) {
+      try { localStorage.setItem('fv_key', bytesToBase64(k)); } catch (e) {}
+      return k;
+    }
+    try {
+      var saved = localStorage.getItem('fv_key');
+      if (saved) return base64ToBytes(saved);
+    } catch (e) {}
+    return null;
+  }
+
+  // ---- 解密（AES-GCM，格式与 Python 端一致：WebCrypto 密文含尾部 tag）----
+  var ready = (async function () {
+    var keyBytes = resolveKey();
+    if (!keyBytes) {
+      showFatal('缺少解密密钥',
+        '这个页面把持仓数据加密了，需要带密钥的链接。<br>' +
+        '请在网址后面加上 <code>#k=密钥</code>（你保存的那条链接就带）。');
+      throw new Error('no key');
+    }
+    var enc = await ORIGINAL_FETCH('bundle.enc.json', { cache: 'no-store' });
+    if (!enc.ok) throw new Error('bundle.enc.json HTTP ' + enc.status);
+    var raw = await enc.json();
+
+    var key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+    var iv = base64ToBytes(raw.iv);
+    var data = base64ToBytes(raw.data);
+    var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+    var bundle = JSON.parse(new TextDecoder().decode(plain));
+    // 基金索引是公开数据，不加密，单独取
+    try {
+      var r = await ORIGINAL_FETCH('funds.json', { cache: 'no-store' });
+      if (r.ok) bundle.funds = await r.json();
+    } catch (e) {}
+    return bundle;
+  })().catch(function (e) {
+    if (e && e.message === 'no key') throw e;
+    showFatal('数据解密失败', '密钥不对，或者包已经更新过。<br>请用最新保存的那条链接打开。<br><br><small>' +
+      (e && e.message ? e.message : e) + '</small>');
+    throw e;
+  });
+
+  // ---- 错误提示覆盖层 ----
+  function showFatal(title, html) {
+    var d = document.createElement('div');
+    d.setAttribute('data-fv-fatal', '1');
+    d.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0f1115;color:#e8eaed;' +
+      'display:flex;align-items:center;justify-content:center;padding:24px;font:15px/1.7 system-ui,sans-serif';
+    d.innerHTML = '<div style="max-width:420px;text-align:center">' +
+      '<div style="font-size:19px;font-weight:700;margin-bottom:12px">' + title + '</div>' +
+      '<div style="color:#9aa0a6;font-size:14px">' + html + '</div></div>';
+    document.documentElement.appendChild(d);
+  }
+
+  // ---- 把 URL 映射到静态包里的键 ----
+  function mapPath(path) {
+    if (path === '/api/real-status') return ['status'];
+    if (path === '/api/real-watchlist') return ['realWatchlist'];
+    if (path === '/api/watchlist') return ['watchlist'];
+    if (path === '/api/holdings') return ['holdings'];
+    if (path === '/api/ranking') return ['ranking'];
+    if (path === '/api/ledger') return ['ledger'];
+    if (path === '/api/accuracy') return ['accuracy'];
+    if (path === '/api/category') return ['category'];
+    if (path === '/api/status') return ['marketStatus'];
+    return null;
+  }
+
+  function json(v) {
+    return Promise.resolve(new Response(JSON.stringify(v), {
+      status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    }));
+  }
+
+  function fail(msg, code) {
+    return Promise.resolve(new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: code || 501, headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    }));
+  }
+
+  // ---- 搜索：在本地基金索引里过滤 ----
+  function localSearch(q) {
+    var idx = (window.__fvBundle && window.__fvBundle.funds) || [];
+    var key = String(q || '').trim().toLowerCase();
+    if (!key) return Promise.resolve(json([]));
+    var out = [];
+    for (var i = 0; i < idx.length && out.length < 12; i++) {
+      var it = idx[i];
+      if (it[0].indexOf(key) === 0 || it[1].toLowerCase().indexOf(key) >= 0) {
+        out.push({ code: it[0], name: it[1], type: it[2] || '' });
+      }
+    }
+    return Promise.resolve(json(out));
+  }
+
+  window.fetch = function (url, opts) {
+    opts = opts || {};
+    var full = typeof url === 'string' ? url : (url && url.url) || '';
+    var path;
+    try { path = new URL(full, location.href).pathname; } catch (e) { path = full; }
+
+    if (path.indexOf('/api/') !== 0) return ORIGINAL_FETCH(url, opts);
+
+    var method = (opts.method || 'GET').toUpperCase();
+    var bundleP = ready.then(function (b) {
+      window.__fvBundle = b;
+      return b;
+    });
+
+    // 写操作：静态版没有后端
+    if (method !== 'GET') {
+      return bundleP.then(function () {
+        return fail('静态版本是只读的，记账和持仓编辑请在电脑上操作', 501);
+      });
+    }
+
+    // 详情页：预计算的持仓基金详情
+    if (path.indexOf('/api/detail/') === 0) {
+      var code = decodeURIComponent(path.slice('/api/detail/'.length));
+      return bundleP.then(function (b) {
+        var d = (b.details || {})[code];
+        return d ? json(d) : json({ quote: {}, penetration: null, holding: null });
+      });
+    }
+
+    // 净值历史
+    if (path.indexOf('/api/nav/') === 0) {
+      var ncode = decodeURIComponent(path.slice('/api/nav/'.length));
+      return bundleP.then(function (b) {
+        var n = (b.nav || {})[ncode];
+        return json(n || []);
+      });
+    }
+
+    // 搜索
+    if (path === '/api/search') {
+      var q = '';
+      try { q = new URL(full, location.href).searchParams.get('q') || ''; } catch (e) {}
+      return bundleP.then(function (b) {
+        window.__fvBundle = b;
+        return localSearch(q);
+      });
+    }
+
+    // 同步真实持仓（写语义）
+    if (path === '/api/sync-from-real') {
+      return bundleP.then(function () { return fail('静态版本没有后端，无法同步', 501); });
+    }
+
+    var mapped = mapPath(path);
+    if (!mapped) {
+      return bundleP.then(function () { return fail('静态版本没有这个接口: ' + path, 404); });
+    }
+    return bundleP.then(function (b) {
+      var v = b[mapped[0]];
+      if (v === undefined || v === null) {
+        return fail('静态包里没有 ' + mapped[0] + ' 的数据', 404);
+      }
+      return json(v);
+    });
+  };
+
+  // 页面加载前如果出 fatal，遮罩已经盖上；这里再兜一层
+  window.addEventListener('error', function (e) {
+    if (e && e.message === 'no key') {
+      // 已经弹过遮罩了，不用再处理
+    }
+  });
+})();
+
+</script>
+<script>
+const $ = id => document.getElementById(id);
+let mode = 'real', tab = 'hold', picked = null, lPicked = null, timer = null, realOK = false, lSide = 'buy';
+
+const fmt = (n, d = 2) => n == null ? '--' :
+  Number(n).toLocaleString('zh-CN', { minimumFractionDigits: d, maximumFractionDigits: d });
+const money = n => n == null ? '--' : '¥' + fmt(n);
+const signed = n => n == null ? '--' : (n > 0 ? '+' : '') + fmt(n);
+const pct = n => n == null ? '--' : (n > 0 ? '+' : '') + fmt(n) + '%';
+const cls = n => n == null ? 'flat' : (n > 0 ? 'up' : (n < 0 ? 'down' : 'flat'));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const SRC_LABEL = {
+  official: ['官方估值', 'ok'], penetration: ['穿透估算', 'pen'],
+  qdii: ['QDII·已结算', 'qdii'], settled: ['已收盘', 'settled'],
+};
+function srcTag(s) { const m = SRC_LABEL[s]; return m ? `<span class="tag ${m[1]}">${m[0]}</span>` : ''; }
+
+function estCols(i) {
+  const intra = i.intraday || {}, settled = i.settled || {};
+  const inPct = intra.pct, sePct = settled.pct;
+  const intraCell = inPct == null ? '<span class="muted">—</span>'
+    : `<div class="num ${cls(inPct)}">${pct(inPct)}</div><div class="fcode">估 ${fmt(intra.nav, 4)}</div>`;
+  const settledCell = sePct == null ? '<span class="muted">—</span>'
+    : `<div class="num ${cls(sePct)}">${pct(sePct)}</div><div class="fcode">净 ${fmt(settled.nav, 4)}</div><div class="fcode">${esc(settled.date || '')}</div>`;
+  let errCell, acc = i.accuracy || {};
+  if (acc.today && acc.today.err != null) {
+    const e = acc.today.err, c = Math.abs(e) <= 0.3 ? 'errGood' : (Math.abs(e) <= 0.8 ? 'errMid' : 'errBad');
+    errCell = `<div class="num ${c}">${e > 0 ? '+' : ''}${fmt(e, 3)}</div><div class="fcode">今日实测</div>`;
+  } else if (inPct != null && sePct != null && intra.source) {
+    const e = +(inPct - sePct).toFixed(3);
+    const c = Math.abs(e) <= 0.3 ? 'errGood' : (Math.abs(e) <= 0.8 ? 'errMid' : 'errBad');
+    errCell = `<div class="num ${c}">${e > 0 ? '+' : ''}${fmt(e, 3)}</div><div class="fcode">盘中</div>`;
+  } else errCell = '<span class="muted">—</span>';
+  return { intraCell, settledCell, errCell };
+}
+
+// 安全赋值：元素缺失时静默跳过，避免单个 id 缺失导致整个真实持仓渲染失败
+function setTxt(id, txt, className) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = txt;
+  if (className != null) el.className = className;
+}
+
+function renderAccuracyCard(d) {
+  const acc = d.accuracy || {};
+  if (!acc || !acc.n) { setTxt('s-acc', '--'); setTxt('s-accdesc', '样本不足，开盘后开始累计'); return; }
+  setTxt('s-acc', '±' + fmt(acc.mae, 3) + '%');
+  const parts = [acc.n + ' 个交易日', acc.funds + ' 只基金'];
+  if (acc.best_bucket_label) parts.push(acc.best_bucket_label + '最准');
+  if (acc.bias != null) parts.push('系统' + (acc.bias > 0 ? '高估 ' : '低估 ') + fmt(Math.abs(acc.bias), 3) + '%');
+  setTxt('s-accdesc', parts.join(' · '));
+}
+
+async function jget(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+// ---- 顶部标签 ----
+const TABS = ['hold','rank','search','ledger','acc','cat'];
+function switchTab(t) {
+  tab = t;
+  if ((location.hash || '').slice(1) !== t) {
+    try { history.replaceState(null, '', '#' + t); } catch (e) {}
+  }
+  document.querySelectorAll('#topTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  TABS.forEach(s => $('sec-' + s).style.display = s === t ? '' : 'none');
+  clearTimeout(timer);
+  if (t === 'hold') load();
+  else if (t === 'rank') loadRank();
+  else if (t === 'search') $('skw').focus();
+  else if (t === 'ledger') loadLedger();
+  else if (t === 'acc') loadAcc();
+  else if (t === 'cat') loadCat();
+}
+document.querySelectorAll('#topTabs .tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+// ---- 持仓：真实/自建 子切换 ----
+function setMode(m) {
+  mode = m;
+  $('tab-real').classList.toggle('on', m === 'real');
+  $('tab-manual').classList.toggle('on', m === 'manual');
+  $('panel-add').style.display = m === 'manual' ? '' : 'none';
+  $('panel-real').style.display = m === 'real' ? '' : 'none';
+  clearTimeout(timer);
+  load();
+}
+$('tab-real').onclick = () => setMode('real');
+$('tab-manual').onclick = () => setMode('manual');
+
+function renderPhase(d) {
+  const ph = $('phase');
+  ph.textContent = d.phase_desc || '--';
+  ph.className = 'badge ' + (d.phase === 'open' ? 'live' : 'rest');
+  $('updated').textContent = '更新于 ' + (d.updated || '--');
+}
+
+async function load() {
+  $('refresh').disabled = true;
+  try {
+    if (mode === 'real') {
+      const st = await jget('/api/real-status').catch(() => ({}));
+      $('dot-real').className = 'dot ' + (st.logged_in ? 'ok' : 'bad');
+      if (!st.logged_in) throw new Error(st.error || 'ttskill 未登录，已切到自建持仓');
+      const d = await jget('/api/real-watchlist');
+      if (!d.ok) throw new Error(d.error || '账户数据拉取失败');
+      realOK = true; renderReal(d);
+      $('err').style.display = 'none'; $('warn').style.display = 'block'; $('warn').innerHTML = realWarnText(d);
+    } else {
+      const d = await jget('/api/watchlist'); renderManual(d);
+      $('err').style.display = 'none'; $('warn').style.display = 'none';
+    }
+  } catch (e) {
+    $('err').style.display = 'block'; $('err').textContent = '数据拉取失败：' + e.message;
+    if (mode === 'real') { $('warn').style.display = 'none'; $('rows').innerHTML = '<tr><td colspan="7" class="empty">真实持仓不可用：' + esc(e.message) + '<br>可切到「自建持仓」手动录入</td></tr>'; }
+  } finally { $('refresh').disabled = false; schedule(); }
+}
+
+function realWarnText(d) {
+  let age = d.snapshot_age, ageTxt = '';
+  if (age != null) {
+    if (age < 60) ageTxt = '刚刚';
+    else if (age < 3600) ageTxt = Math.floor(age / 60) + ' 分钟前';
+    else if (age < 86400) ageTxt = Math.floor(age / 3600) + ' 小时前';
+    else ageTxt = Math.floor(age / 86400) + ' 天前';
+  }
+  const parts = [];
+  parts.push('当前为<b>真实持仓</b>（天天基金账户，' + d.items.length + ' 只）。');
+  parts.push(d.live ? '盘中估值由云端按公开行情<b>实时</b>计算。' : '当前显示推送时点的估值。');
+  if (d.snapshot_seed) parts.push('份额/成本为<b>部署前历史快照</b>，如需最新请在电脑端运行 push_real.py。');
+  else if (ageTxt) parts.push('份额/成本来自电脑端 ' + ageTxt + (d.pushed_at ? '（' + esc(d.pushed_at) + '）' : '') + ' 推送' + (d.snapshot_fresh ? '' : '，<b>稍旧</b>'));
+  if (d.phase && d.phase !== 'open') parts.push('当前非交易时段，「当日收益」为最近结算日数字。');
+  return parts.join('');
+}
+
+function renderReal(d) {
+  renderPhase(d);
+  const s = d.summary;
+  setTxt('s-mv', money(s.market_value));
+  setTxt('s-cost', '活期宝 ' + money(s.hqb) + ' · 合计 ' + money(s.total_asset));
+  setTxt('s-day', signed(s.day_profit), 'vl num ' + cls(s.day_profit));
+  setTxt('s-daypct', pct(s.day_profit_pct), 'sub ' + cls(s.day_profit_pct));
+  setTxt('s-total', signed(s.total_profit), 'vl num ' + cls(s.total_profit));
+  setTxt('s-totalpct', pct(s.total_profit_pct) + ' · 成本 ' + money(s.total_cost), 'sub ' + cls(s.total_profit_pct));
+  setTxt('s-count', ((s.count != null ? s.count : d.items.length)) + ' 只');
+  const bySrc = {}; d.items.forEach(i => bySrc[i.source] = (bySrc[i.source] || 0) + 1);
+  setTxt('s-src', Object.entries(bySrc).map(([k, v]) => (SRC_LABEL[k] ? SRC_LABEL[k][0] : k) + ' ' + v).join(' · ') || '--');
+  setTxt('tbl-right', 'QDII「参考」为标的指数实时涨跌');
+  const tb = $('rows');
+  if (!d.items.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">账户里没有持仓</td></tr>'; return; }
+  const totalMv = s.market_value || 1;
+  tb.innerHTML = d.items.map(i => {
+    const ref = i.ref ? `<div class="fcode">参考 ${esc(i.ref.label)} <b class="${cls(i.ref.change_pct)}">${pct(i.ref.change_pct)}</b></div>` : '';
+    const w = (i.market_value || 0) / totalMv * 100;
+    const ec = estCols(i);
+    return `<tr>
+      <td><div class="fname">${esc(i.name || i.code)}${srcTag(i.source)}</div>
+        <div class="fcode">${i.code} · ${i.nav_date || '--'}${i.shares ? ' · ' + fmt(i.shares, 2) + '份' : ''}</div>${ref}</td>
+      <td class="num">${ec.intraCell}</td><td class="num">${ec.settledCell}</td><td class="num">${ec.errCell}</td>
+      <td class="num ${cls(i.day_profit)}">${signed(i.day_profit)}</td>
+      <td class="num ${cls(i.hold_profit)}">${signed(i.hold_profit)}<div class="fcode ${cls(i.hold_profit_rate)}">${pct(i.hold_profit_rate)}</div></td>
+      <td class="num">${money(i.market_value)}<div class="bar"><i style="width:${w.toFixed(1)}%"></i></div><div class="fcode">${w.toFixed(1)}%</div></td>
+    </tr>`;
+  }).join('');
+  renderAccuracyCard(d);
+}
+
+function renderManual(d) {
+  renderPhase(d);
+  const s = d.summary, items = d.items;
+  setTxt('s-mv', money(s.market_value)); setTxt('s-cost', '成本 ' + money(s.total_cost));
+  setTxt('s-day', signed(s.day_profit), 'vl num ' + cls(s.day_profit));
+  setTxt('s-daypct', pct(s.day_profit_pct), 'sub ' + cls(s.day_profit_pct));
+  setTxt('s-total', signed(s.total_profit), 'vl num ' + cls(s.total_profit));
+  setTxt('s-totalpct', pct(s.total_profit_pct), 'sub ' + cls(s.total_profit_pct));
+  setTxt('s-count', items.length + ' 只');
+  const srcs = {}; items.forEach(i => srcs[i.source] = (srcs[i.source] || 0) + 1);
+  setTxt('s-src', Object.entries(srcs).map(([k, v]) => (SRC_LABEL[k] ? SRC_LABEL[k][0] : k) + ' ' + v).join(' · ') || '--');
+  setTxt('tbl-right', '');
+  const tb = $('rows');
+  if (!items.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">还没有持仓，先在下方添加</td></tr>'; return; }
+  tb.innerHTML = items.map(i => {
+    const ec = estCols(i);
+    return `<tr>
+      <td><div class="fname">${esc(i.name || i.code)}${srcTag(i.source)}</div>
+        <div class="fcode">${i.code}${i.nav_date ? ' · ' + i.nav_date : ''}</div></td>
+      <td class="num">${ec.intraCell}</td><td class="num">${ec.settledCell}</td><td class="num">${ec.errCell}</td>
+      <td class="num ${cls(i.day_profit)}">${signed(i.day_profit)}</td>
+      <td class="num ${cls(i.total_profit)}">${signed(i.total_profit)}${i.total_profit_pct != null ? `<div class="fcode ${cls(i.total_profit_pct)}">${pct(i.total_profit_pct)}</div>` : ''}</td>
+      <td class="num">${money(i.market_value)}<button class="del" data-code="${i.code}" title="删除">×</button></td>
+    </tr>`;
+  }).join('');
+  renderAccuracyCard(d);
+  tb.querySelectorAll('.del').forEach(b => b.onclick = () => remove(b.dataset.code));
+}
+
+function schedule() {
+  clearTimeout(timer);
+  if (tab !== 'hold') return;
+  const live = $('phase').className.includes('live');
+  const h = new Date().getHours();
+  const usHours = h >= 21 || h < 4;
+  const iv = live ? 30000 : (usHours && mode === 'real' ? 60000 : 300000);
+  timer = setTimeout(load, iv);
+}
+
+async function remove(code) { await fetch('/api/holdings/' + code, { method: 'DELETE' }); load(); }
+
+// ==================== 排行 ====================
+async function loadRank() {
+  try {
+    const d = await jget('/api/ranking');
+    if (!d.ok) throw new Error(d.error || '无数据');
+    $('rank-day').innerHTML = d.day.length ? d.day.map((i, k) => rankRow(i, k, 'day')).join('') : '<tr><td colspan="4" class="empty">暂无持仓</td></tr>';
+    $('rank-hold').innerHTML = d.hold.length ? d.hold.map((i, k) => rankRow(i, k, 'hold')).join('') : '<tr><td colspan="4" class="empty">暂无持仓</td></tr>';
+    $('rank-best').innerHTML = d.acc_best.length ? d.acc_best.map(accRow).join('') : '<tr><td colspan="3" class="empty">样本不足</td></tr>';
+    $('rank-worst').innerHTML = d.acc_worst.length ? d.acc_worst.map(accRow).join('') : '<tr><td colspan="3" class="empty">样本不足</td></tr>';
+  } catch (e) { showErr('排行加载失败：' + e.message); }
+}
+function rankRow(i, k, kind) {
+  const val = kind === 'day' ? i.day_profit : i.hold_profit;
+  const rate = kind === 'day' ? i.est_pct : i.hold_profit_rate;
+  return `<tr>
+    <td><span class="rank">${k + 1}</span><div class="fname" style="display:inline">${esc(i.name || i.code)}</div>
+      <div class="fcode">${i.code}</div></td>
+    <td class="num ${cls(val)}">${signed(val)}</td>
+    <td class="num ${cls(rate)}">${pct(rate)}</td>
+    <td class="num">${money(i.market_value)}</td>
+  </tr>`;
+}
+function accRow(a) {
+  const m = a.mae, c = m == null ? '' : (Math.abs(m) <= 0.3 ? 'errGood' : (Math.abs(m) <= 0.8 ? 'errMid' : 'errBad'));
+  return `<tr>
+    <td><div class="fname" style="display:inline">${esc(a.name || a.code)}</div><div class="fcode">${a.code}</div></td>
+    <td class="num ${c}">${m == null ? '--' : '±' + fmt(m, 3) + '%'}</td>
+    <td class="num">${a.n} 样本</td>
+  </tr>`;
+}
+
+// ==================== 搜索 ====================
+let sst = null;
+$('skw').addEventListener('input', e => {
+  clearTimeout(sst);
+  const q = e.target.value.trim(); picked = null;
+  if (q.length < 1) { $('ssug').style.display = 'none'; $('search-res').innerHTML = '<tr><td colspan="3" class="empty">输入关键字搜索基金</td></tr>'; return; }
+  sst = setTimeout(async () => {
+    const res = await jget('/api/search?q=' + encodeURIComponent(q)).catch(() => []);
+    const box = $('ssug');
+    box.innerHTML = res.length ? res.map(r => `<tr data-code="${r.code}"><td><div class="fname" style="display:inline">${esc(r.name)}</div><div class="fcode">${r.code}${r.type ? ' · ' + esc(r.type) : ''}</div></td><td></td><td class="num muted">查看</td></tr>`).join('')
+      : '<tr><td colspan="3" class="empty">未找到</td></tr>';
+  }, 240);
+});
+$('search-res').addEventListener('click', e => { const tr = e.target.closest('tr[data-code]'); if (tr) loadDetail(tr.dataset.code); });
+async function loadDetail(code) {
+  try {
+    const d = await jget('/api/detail/' + code);
+    const q = d.quote || {};
+    $('detail').style.display = '';
+    $('detail-title').textContent = (q.name || code) + ' · ' + code;
+    let html = '<table><tbody>'
+      + `<tr><td>最新净值</td><td class="num">${q.nav != null ? fmt(q.nav, 4) : '--'}</td><td class="fcode">${esc(q.nav_date || '')}</td></tr>`
+      + `<tr><td>净值涨跌</td><td class="num ${cls(q.nav_change)}">${pct(q.nav_change)}</td><td></td></tr>`
+      + `<tr><td>盘中估算</td><td class="num ${cls(q.gszzl)}">${q.gsz != null ? fmt(q.gsz, 4) + ' / ' : ''}${pct(q.gszzl)}</td><td class="fcode">${esc(q.gztime || '')}</td></tr>`
+      + '</tbody></table>';
+    const pen = d.penetration;
+    if (pen && Array.isArray(pen.top10) && pen.top10.length) {
+      html += '<h3 style="padding:12px 0 4px">十大重仓穿透（估算参考）</h3><table><tbody>'
+        + pen.top10.slice(0, 10).map(s => `<tr><td>${esc(s.name || s.code)}</td><td class="fcode">${s.code || ''}</td><td class="num ${cls(s.change_pct)}">${pct(s.change_pct)}</td></tr>`).join('')
+        + '</tbody></table>';
+    }
+    const hd = d.holding;
+    if (hd && Array.isArray(hd.stocks) && hd.stocks.length) {
+      html += '<h3 style="padding:12px 0 4px">持仓股票</h3><table><tbody>'
+        + hd.stocks.slice(0, 10).map(s => `<tr><td>${esc(s.name || s.code)}</td><td class="fcode">${s.code || ''}</td><td class="num ${cls(s.change_pct)}">${pct(s.change_pct)}</td></tr>`).join('')
+        + '</tbody></table>';
+    }
+    $('detail-body').innerHTML = html;
+  } catch (e) { showErr('详情加载失败：' + e.message); }
+}
+
+// ==================== 记账 ====================
+function initLedgerDate() { $('l-date').value = new Date().toISOString().slice(0, 10); }
+$('l-buy').onclick = () => { lSide = 'buy'; $('l-buy').classList.add('on'); $('l-sell').classList.remove('on'); };
+$('l-sell').onclick = () => { lSide = 'sell'; $('l-buy').classList.remove('on'); $('l-sell').classList.add('on'); };
+let lst = null;
+$('lkw').addEventListener('input', e => {
+  clearTimeout(lst);
+  const q = e.target.value.trim(); lPicked = null;
+  if (q.length < 1) { $('lsug').style.display = 'none'; return; }
+  lst = setTimeout(async () => {
+    const res = await jget('/api/search?q=' + encodeURIComponent(q)).catch(() => []);
+    const box = $('lsug');
+    box.innerHTML = res.length ? res.slice(0, 8).map(r => `<div data-code="${r.code}" data-name="${esc(r.name)}">${esc(r.name)} <span class="fcode">${r.code}</span></div>`).join('')
+      : '<div class="fcode" style="padding:8px 11px">未找到，可直接填 6 位代码</div>';
+    box.style.display = 'block';
+    box.querySelectorAll('div[data-code]').forEach(dv => dv.onclick = () => { lPicked = { code: dv.dataset.code, name: dv.dataset.name }; $('lkw').value = dv.dataset.name; box.style.display = 'none'; });
+  }, 240);
+});
+document.addEventListener('click', e => { if (!e.target.closest('.fld')) { $('sug').style.display = 'none'; $('ssug').style.display = 'none'; $('lsug').style.display = 'none'; } });
+
+async function loadLedger() {
+  try {
+    const d = await jget('/api/ledger');
+    $('ledger-cards').querySelectorAll('.vl').forEach((v, k) => {
+      const vals = [d.invested, d.redeemed, d.net_invested]; v.textContent = money(vals[k]);
+    });
+    const tb = $('ledger-tbl');
+    const rows = d.rows || [];
+    $('l-count').textContent = rows.length ? rows.length + ' 笔' : '';
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">还没有记账</td></tr>'; return; }
+    tb.innerHTML = rows.map(r => `<tr>
+      <td><div class="fcode">${esc(r.date)}</div><div class="fname" style="display:inline">${esc(r.name || r.code)}</div><div class="fcode">${r.code}</div></td>
+      <td><span class="tag ${r.side}">${r.side === 'buy' ? '买入' : '卖出'}</span></td>
+      <td class="num">${fmt(r.shares, 2)}</td>
+      <td class="num">${fmt(r.price, 4)}</td>
+      <td class="num">${money(r.amount)}</td>
+      <td><button class="del" data-id="${r.id}" title="删除">×</button></td>
+    </tr>`).join('');
+    tb.querySelectorAll('.del').forEach(b => b.onclick = () => delLedger(b.dataset.id));
+  } catch (e) { showErr('记账加载失败：' + e.message); }
+}
+async function delLedger(id) { await fetch('/api/ledger/' + id, { method: 'DELETE' }); loadLedger(); }
+$('l-add').onclick = async () => {
+  const kwv = $('lkw').value.trim();
+  const code = lPicked ? lPicked.code : (kwv.match(/\d{6}/) || [null])[0];
+  const shares = parseFloat($('l-shares').value), price = parseFloat($('l-price').value);
+  if (!code) return alert('请选择或输入 6 位基金代码');
+  if (!shares || shares <= 0) return alert('请填写份额');
+  if (!price || price <= 0) return alert('请填写单价');
+  const body = { code, name: lPicked ? lPicked.name : '', side: lSide,
+    shares, price, date: $('l-date').value || new Date().toISOString().slice(0, 10), note: $('l-note').value.trim() };
+  const r = await fetch('/api/ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ row: body }) });
+  const j = await r.json();
+  if (!j.ok) return alert('保存失败：' + (j.error || ''));
+  $('lkw').value = $('l-shares').value = $('l-price').value = $('l-note').value = ''; lPicked = null;
+  loadLedger();
+};
+
+// ==================== 准确度 ====================
+async function loadAcc() {
+  try {
+    const d = await jget('/api/accuracy');
+    const acc = d.accuracy || {};
+    if (!acc || !acc.n) {
+      $('a-mae').textContent = '--'; $('a-mae-sub').textContent = '样本不足，开盘后累计';
+      $('a-n').textContent = '--'; $('a-n-sub').textContent = '--';
+      $('a-bias').textContent = '--'; $('a-bias-sub').textContent = '--';
+      $('a-best').textContent = '--'; $('a-best-sub').textContent = '--';
+      $('acc-tbl').innerHTML = '<tr><td colspan="5" class="empty">样本不足，开盘后开始累计</td></tr>';
+      return;
+    }
+    $('a-mae').textContent = '±' + fmt(acc.mae, 3) + '%'; $('a-mae-sub').textContent = acc.funds + ' 只基金平均';
+    $('a-n').textContent = acc.n; $('a-n-sub').textContent = '交易日样本';
+    $('a-bias').textContent = (acc.bias > 0 ? '高估 ' : '低估 ') + fmt(Math.abs(acc.bias), 3) + '%'; $('a-bias-sub').textContent = '系统性偏差';
+    $('a-best').textContent = acc.best_bucket_label || '--'; $('a-best-sub').textContent = '该时点最准';
+    const tb = $('acc-tbl');
+    const items = (d.items || []).filter(x => x.accuracy && x.accuracy.n);
+    if (!items.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">样本不足</td></tr>'; return; }
+    tb.innerHTML = items.map(x => {
+      const a = x.accuracy;
+      const m = a.mae, c = m == null ? '' : (Math.abs(m) <= 0.3 ? 'errGood' : (Math.abs(m) <= 0.8 ? 'errMid' : 'errBad'));
+      const t = a.today && a.today.err != null ? (a.today.err > 0 ? '+' : '') + fmt(a.today.err, 3) + '%' : '--';
+      return `<tr>
+        <td><div class="fname" style="display:inline">${esc(x.name || x.code)}</div><div class="fcode">${x.code}</div></td>
+        <td class="num">${a.n}</td>
+        <td class="num ${c}">${m == null ? '--' : '±' + fmt(m, 3) + '%'}</td>
+        <td class="num">${a.bias == null ? '--' : (a.bias > 0 ? '+' : '') + fmt(a.bias, 3) + '%'}</td>
+        <td class="num">${t}<div class="fcode">${a.best_bucket_label || ''}</div></td>
+      </tr>`;
+    }).join('');
+  } catch (e) { showErr('准确度加载失败：' + e.message); }
+}
+
+function showErr(msg) { $('err').style.display = 'block'; $('err').textContent = msg; }
+
+// ---- 添加持仓（自建）----
+let _kwT = null;
+$('kw').addEventListener('input', e => {
+  clearTimeout(_kwT);
+  const q = e.target.value.trim(); picked = null;
+  if (q.length < 1) { $('sug').style.display = 'none'; return; }
+  _kwT = setTimeout(async () => {
+    const res = await jget('/api/search?q=' + encodeURIComponent(q)).catch(() => []);
+    const box = $('sug');
+    box.innerHTML = res.length ? res.map(r => `<div data-code="${r.code}" data-name="${esc(r.name)}">${esc(r.name)} <span class="fcode">${r.code}</span></div>`).join('')
+      : '<div class="fcode" style="padding:8px 11px">未找到，可直接填 6 位代码</div>';
+    box.style.display = 'block';
+    box.querySelectorAll('div[data-code]').forEach(dv => dv.onclick = () => { picked = { code: dv.dataset.code, name: dv.dataset.name }; $('kw').value = dv.dataset.name; box.style.display = 'none'; });
+  }, 260);
+});
+$('add').onclick = async () => {
+  const kwv = $('kw').value.trim();
+  const code = picked ? picked.code : (kwv.match(/\d{6}/) || [null])[0];
+  const shares = parseFloat($('shares').value), cost = parseFloat($('cost').value);
+  if (!code) return alert('请选择或输入 6 位基金代码');
+  if (!shares || shares <= 0) return alert('请填写持有份额');
+  const h = await jget('/api/holdings');
+  h.holdings = h.holdings.filter(x => x.code !== code);
+  h.holdings.push({ code, shares, cost: isNaN(cost) ? null : cost });
+  await fetch('/api/holdings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(h) });
+  $('kw').value = $('shares').value = $('cost').value = ''; picked = null; load();
+};
+$('sync').onclick = async () => {
+  $('sync').disabled = true; $('sync-msg').textContent = '同步中…';
+  try { const r = await jget('/api/sync-from-real'); $('sync-msg').textContent = r.ok ? '已覆盖 ' + r.count + ' 条' : ('失败：' + (r.error || '')); }
+  catch (e) { $('sync-msg').textContent = '失败：' + e.message; }
+  finally { $('sync').disabled = false; }
+};
+$('refresh').onclick = () => {
+  if (tab === 'hold') load();
+  else if (tab === 'rank') loadRank();
+  else if (tab === 'ledger') loadLedger();
+  else if (tab === 'acc') loadAcc();
+  else if (tab === 'cat') loadCat();
+};
+
+initLedgerDate();
+(async () => {
+  const st = await jget('/api/real-status').catch(() => ({ logged_in: false }));
+  setMode(st.logged_in ? 'real' : 'manual');
+  const h0 = (location.hash || '').slice(1);
+  switchTab(TABS.indexOf(h0) >= 0 ? h0 : 'hold');
+})();
+
+// ===================== 品类（红利低波 / 债券）=====================
+let CAT = null;
+const CAT_COLORS = ['#E24B4A','#1D9E75','#2F6FED','#E0A32E','#8E5BD0','#16A3A3',
+                    '#D2607A','#6B7A8F','#B0783C','#3E8E7E','#9C4D8C','#4A6FA5'];
+
+function catSpark(labels, series) {
+  const names = Object.keys(series || {});
+  if (!labels.length || !names.length) return '<div class="empty">暂无走势数据</div>';
+  const all = [];
+  names.forEach(n => (series[n] || []).forEach(v => { if (v != null) all.push(v); }));
+  if (!all.length) return '<div class="empty">暂无走势数据</div>';
+  const lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+  const pad = (hi - lo) * 0.08 || 1;
+  const y0 = lo - pad, y1 = hi + pad;
+  const W = 700, H = 260;
+  const X = i => 4 + (i / Math.max(1, labels.length - 1)) * (W - 8);
+  const Y = v => H - 18 - ((v - y0) / (y1 - y0)) * (H - 34);
+  let paths = '';
+  names.forEach((n, k) => {
+    const pts = (series[n] || []).map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+    paths += '<polyline points="' + pts + '" fill="none" stroke="' + CAT_COLORS[k % CAT_COLORS.length]
+      + '" stroke-width="1.3" opacity="0.9"/>';
+  });
+  const legend = names.map((n, k) =>
+    '<span><i style="background:' + CAT_COLORS[k % CAT_COLORS.length] + '"></i>' + esc(n) + '</span>').join('');
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto">'
+    + '<line x1="0" y1="' + (H - 18) + '" x2="' + W + '" y2="' + (H - 18) + '" stroke="#eee"/>'
+    + paths + '</svg><div class="legend">' + legend + '</div>';
+}
+
+function renderCatDiv(d) {
+  const t = d.temperature || {};
+  $('cd-temp').textContent = t.value == null ? '--' : t.value;
+  $('cd-temp').style.color = (t.level || '').indexOf('高温') >= 0 ? '#E24B4A'
+    : (t.level || '').indexOf('低温') >= 0 ? '#1D9E75' : '';
+  $('cd-temp-sub').textContent = (t.level || '--') + ' · 区间 ' + (t.rng || '--')
+    + ' · 数据 ' + (t.date || '--');
+  $('cd-pct').textContent = t.pct == null ? '--' : t.pct + '%';
+  $('cd-pct-sub').textContent = '近 ' + (t.days || '--') + ' 个交易日'
+    + (t.hot ? ' · 过热 ' + t.hot : '');
+  $('cd-ma').textContent = t.ma20 == null ? '--' : t.ma20;
+  $('cd-ma-sub').textContent = '5日 ' + (t.ma5 || '--') + ' · 趋势 ' + (t.trend || '--');
+
+  $('cd-idx').innerHTML = (d.indices || []).map(i =>
+    '<tr><td style="text-align:left">' + esc(i.name || '') + (i.hk ? ' <span class="tag">港股</span>' : '')
+    + '</td><td>' + (i.count || '-') + '</td><td>' + (i.comp || '-') + '</td>'
+    + '<td>' + (i.top10 == null ? '-' : i.top10 + '%') + '</td>'
+    + '<td>' + (i.pe == null ? '-' : i.pe) + '</td>'
+    + '<td class="' + cls((i.pe5y || 0) - 50) + '">' + (i.pe5y == null ? '-' : i.pe5y + '%') + '</td>'
+    + '<td class="' + cls((i.pb5y || 0) - 50) + '">' + (i.pb5y == null ? '-' : i.pb5y + '%') + '</td>'
+    + '<td style="text-align:left">' + esc(i.level || '') + (i.quad ? ' / ' + esc(i.quad) : '') + '</td></tr>'
+  ).join('') || '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
+  $('cd-idx-sub').textContent = (d.counts ? d.counts.indices + ' 个指数' : '');
+
+  $('cd-fund').innerHTML = (d.funds || []).map(f =>
+    '<tr><td style="text-align:left">' + esc(f.name || '')
+    + '<div class="fcode">' + esc(f.code) + '</div></td>'
+    + '<td>' + (f.size == null ? '-' : f.size) + '</td>'
+    + '<td>' + (f.fee == null ? '-' : f.fee + '%') + '</td>'
+    + '<td>' + (f.te == null ? '-' : f.te) + '</td>'
+    + '<td><b>' + (f.score == null ? '-' : f.score) + '</b></td></tr>'
+  ).join('') || '<tr><td colspan="5" class="empty">暂无数据</td></tr>';
+  const c = d.counts || {};
+  $('cd-fund-sub').textContent = 'A 股口径头部 ' + (d.funds || []).length + ' 只 / 共 ' + (c.total || 0)
+    + ' 只' + (c.hk ? ' · 港股口径 ' + c.hk + ' 只（单列）' : '');
+
+  const tr = d.trend || {};
+  $('cd-trend').innerHTML = catSpark(tr.labels || [], tr.series || {});
+  $('cd-trend-sub').textContent = (tr.labels || []).length + ' 个交易日 · 起点 '
+    + ((tr.labels || [])[0] || '--');
+
+  $('cd-backtest').innerHTML = (d.backtest || []).map(b =>
+    '<tr><td style="text-align:left"><b>' + esc(b.lv) + '</b> ' + esc(b.rng) + '</td>'
+    + '<td style="text-align:left">' + esc(b.desc) + '</td>'
+    + '<td class="' + cls(parseFloat(b.ret)) + '">' + esc(b.ret) + '</td>'
+    + '<td>' + esc(b.win) + '</td></tr>'
+  ).join('') || '<tr><td colspan="4" class="empty">暂无数据</td></tr>';
+
+  $('cd-signal').innerHTML = (d.signal || []).map(s =>
+    '<tr><td style="text-align:left">' + esc(s.lv) + '</td>'
+    + '<td style="text-align:left">' + esc(s.mean) + '</td>'
+    + '<td style="text-align:left">' + esc(s.dir) + '</td></tr>'
+  ).join('') || '<tr><td colspan="3" class="empty">暂无数据</td></tr>';
+}
+
+function renderCatBond(d) {
+  $('cb-w').textContent = d.weather || '--';
+  $('cb-w-sub').textContent = (d.board_date || '') + ' · 更新 ' + (d.update_time || '');
+  $('cb-r').textContent = d.rate || '--';
+  $('cb-c').textContent = d.credit || '--';
+
+  const tb = (d.tables || []);
+  $('cb-tables-p').style.display = tb.length ? '' : 'none';
+  $('cb-tables').innerHTML = tb.map(x =>
+    '<h3>' + esc(x.header.indexOf('10Y') >= 0 ? '利率债各期限' : '信用债各期限') + '</h3>'
+    + '<div class="tw"><table><thead><tr>' + x.header.map(h => '<th>' + esc(h) + '</th>').join('')
+    + '</tr></thead><tbody>' + x.rows.map(r =>
+        '<tr>' + r.map(v => '<td>' + esc(v) + '</td>').join('') + '</tr>').join('')
+    + '</tbody></table></div>').join('');
+
+  $('cb-dist').innerHTML = (d.distribution || []).map(x =>
+    '<tr><td style="text-align:left">' + esc(x.name) + '</td>'
+    + '<td>' + x.count + '</td><td>' + x.pct + '%</td>'
+    + '<td>' + x.covered + '（' + x.cover_pct + '%）</td></tr>'
+  ).join('') || '<tr><td colspan="4" class="empty">暂无数据</td></tr>';
+  const cc = d.counts || {};
+  $('cb-dist-sub').textContent = '全市场 ' + (cc.market || 0) + ' 只';
+
+  $('cb-groups').innerHTML = (d.groups || []).map(g =>
+    '<div class="panel"><h2>' + esc(g.name) + '<span class="right">头部 ' + g.funds.length
+    + ' / ' + g.total + ' 只</span></h2><div class="tw"><table class="c-bond"><thead><tr>'
+    + '<th>基金</th><th>规模</th><th>近1年</th><th>今年以来</th>'
+    + '<th>夏普</th><th>回撤</th></tr></thead><tbody>'
+    + g.funds.map(f => '<tr><td style="text-align:left">' + esc(f.name)
+        + '<div class="fcode">' + esc(f.code) + '</div></td>'
+        + '<td>' + (f.size == null ? '-' : f.size) + '</td>'
+        + '<td class="' + cls(f.r1y) + '">' + (f.r1y == null ? '-' : signed(f.r1y) + '%') + '</td>'
+        + '<td class="' + cls(f.ytd) + '">' + (f.ytd == null ? '-' : signed(f.ytd) + '%') + '</td>'
+        + '<td>' + (f.sharpe == null ? '-' : f.sharpe) + '</td>'
+        + '<td>' + (f.dd == null ? '-' : f.dd + '%') + '</td></tr>').join('')
+    + '</tbody></table></div></div>').join('');
+
+  const bl = d.blind || [];
+  $('cb-blind-p').style.display = bl.length ? '' : 'none';
+  $('cb-blind').innerHTML = '<b>数据边界：</b>条件选基只开放了长债/中短债/混合一级/混合二级四个'
+    + '债券二级码，它的"长债"桶经东方财富分类逐条核对后不含利率债与信用债 —— '
+    + '这两类合计 ' + bl.reduce((s, x) => s + x.count, 0) + ' 只，ttskill 侧没有可用的横评指标，'
+    + '下面只给名单。<br>' + bl.map(x =>
+        '<b>' + esc(x.name) + '</b>（' + x.count + ' 只）：' + esc((x.samples || []).join('、')) + ' …'
+      ).join('<br>');
+}
+
+async function loadCat() {
+  const d = await jget('/api/category').catch(() => null);
+  if (!d || !d.ok) {
+    $('cat-msg').textContent = (d && d.error) || '云端还没有收到品类数据，请在电脑端运行 category_push.py';
+    return;
+  }
+  CAT = d;
+  $('cat-msg').textContent = '品类数据推送于 ' + (d.pushed_at || '--');
+  renderCatDiv(d.dividend || {});
+  renderCatBond(d.bond || {});
+}
+
+$('tab-cat-div').onclick = () => {
+  $('tab-cat-div').classList.add('on'); $('tab-cat-bond').classList.remove('on');
+  $('cat-div').style.display = ''; $('cat-bond').style.display = 'none';
+};
+$('tab-cat-bond').onclick = () => {
+  $('tab-cat-bond').classList.add('on'); $('tab-cat-div').classList.remove('on');
+  $('cat-div').style.display = 'none'; $('cat-bond').style.display = '';
+};
+
+</script>
+</body>
+</html>
