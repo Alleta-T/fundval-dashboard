@@ -473,22 +473,30 @@
 
   // ---- 解密（AES-GCM，格式与 Python 端一致：WebCrypto 密文含尾部 tag）----
   var ready = (async function () {
-    var keyBytes = resolveKey();
-    if (!keyBytes) {
-      showFatal('缺少解密密钥',
-        '这个页面把持仓数据加密了，需要带密钥的链接。<br>' +
-        '请在网址后面加上 <code>#k=密钥</code>（你保存的那条链接就带）。');
-      throw new Error('no key');
-    }
+    var bundle;
     var enc = await ORIGINAL_FETCH('bundle.enc.json', { cache: 'no-store' });
-    if (!enc.ok) throw new Error('bundle.enc.json HTTP ' + enc.status);
-    var raw = await enc.json();
-
-    var key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
-    var iv = base64ToBytes(raw.iv);
-    var data = base64ToBytes(raw.data);
-    var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
-    var bundle = JSON.parse(new TextDecoder().decode(plain));
+    if (enc.ok) {
+      var keyBytes = resolveKey();
+      if (!keyBytes) {
+        showFatal('缺少解密密钥',
+          '这个页面把持仓数据加密了，需要带密钥的链接。<br>' +
+          '请在网址后面加上 <code>#k=密钥</code>（你保存的那条链接就带）。');
+        throw new Error('no key');
+      }
+      var raw = await enc.json();
+      var key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+      var iv = base64ToBytes(raw.iv);
+      var data = base64ToBytes(raw.data);
+      var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+      bundle = JSON.parse(new TextDecoder().decode(plain));
+    } else {
+      // 调试模式（build_site.py --no-encrypt）：读明文包，不需要密钥
+      var plainRes = await ORIGINAL_FETCH('bundle.json', { cache: 'no-store' });
+      if (!plainRes.ok) {
+        throw new Error('既没有 bundle.enc.json 也没有 bundle.json（HTTP ' + plainRes.status + '）');
+      }
+      bundle = await plainRes.json();
+    }
     // 基金索引是公开数据，不加密，单独取
     try {
       var r = await ORIGINAL_FETCH('funds.json', { cache: 'no-store' });
@@ -498,7 +506,7 @@
   })().catch(function (e) {
     if (e && e.message === 'no key') throw e;
     showFatal('数据解密失败', '密钥不对，或者包已经更新过。<br>请用最新保存的那条链接打开。<br><br><small>' +
-      (e && e.message ? e.message : e) + '</small>');
+      (e && e.message ? e.message : '') + '</small>');
     throw e;
   });
 
@@ -515,18 +523,17 @@
   }
 
   // ---- 把 URL 映射到静态包里的键 ----
-  function mapPath(path) {
-    if (path === '/api/real-status') return ['status'];
-    if (path === '/api/real-watchlist') return ['realWatchlist'];
-    if (path === '/api/watchlist') return ['watchlist'];
-    if (path === '/api/holdings') return ['holdings'];
-    if (path === '/api/ranking') return ['ranking'];
-    if (path === '/api/ledger') return ['ledger'];
-    if (path === '/api/accuracy') return ['accuracy'];
-    if (path === '/api/category') return ['category'];
-    if (path === '/api/status') return ['marketStatus'];
-    return null;
-  }
+  // 这张表是"接口 → 包内键"的唯一真相源；build_site.py 产出包时用同一套键名。
+  var PATH_TO_KEY = {
+    '/api/real-status': 'status',
+    '/api/real-watchlist': 'realWatchlist',
+    '/api/watchlist': 'watchlist',
+    '/api/holdings': 'holdings',
+    '/api/ranking': 'ranking',
+    '/api/ledger': 'ledger',
+    '/api/accuracy': 'accuracy',
+    '/api/category': 'category'
+  };
 
   function json(v) {
     return Promise.resolve(new Response(JSON.stringify(v), {
@@ -585,15 +592,6 @@
       });
     }
 
-    // 净值历史
-    if (path.indexOf('/api/nav/') === 0) {
-      var ncode = decodeURIComponent(path.slice('/api/nav/'.length));
-      return bundleP.then(function (b) {
-        var n = (b.nav || {})[ncode];
-        return json(n || []);
-      });
-    }
-
     // 搜索
     if (path === '/api/search') {
       var q = '';
@@ -609,14 +607,14 @@
       return bundleP.then(function () { return fail('静态版本没有后端，无法同步', 501); });
     }
 
-    var mapped = mapPath(path);
-    if (!mapped) {
+    var key = PATH_TO_KEY[path];
+    if (!key) {
       return bundleP.then(function () { return fail('静态版本没有这个接口: ' + path, 404); });
     }
     return bundleP.then(function (b) {
-      var v = b[mapped[0]];
+      var v = b[key];
       if (v === undefined || v === null) {
-        return fail('静态包里没有 ' + mapped[0] + ' 的数据', 404);
+        return fail('静态包里没有 ' + key + ' 的数据', 404);
       }
       return json(v);
     });
@@ -689,7 +687,12 @@ function renderAccuracyCard(d) {
 
 async function jget(url) {
   const r = await fetch(url, { cache: 'no-store' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) {
+    // 把服务端给的说明带出来，别只剩一个 HTTP 状态码
+    let msg = 'HTTP ' + r.status;
+    try { const j = await r.json(); msg = j.error || j.message || msg; } catch (e) {}
+    throw new Error(msg);
+  }
   return r.json();
 }
 
@@ -697,8 +700,12 @@ async function jget(url) {
 const TABS = ['hold','rank','search','ledger','acc','cat'];
 function switchTab(t) {
   tab = t;
-  if ((location.hash || '').slice(1) !== t) {
-    try { history.replaceState(null, '', '#' + t); } catch (e) {}
+  const hashNow = (location.hash || '').slice(1);
+  // 保留 URL 里的密钥参数（#cat&k=...）。静态版的密钥就靠它带着，
+  // 直接 replaceState 成 '#cat' 会把密钥冲掉。
+  const keyPart = (hashNow.match(/[&?]k=[^&]+/) || [''])[0];
+  if (hashNow !== t + keyPart) {
+    try { history.replaceState(null, '', '#' + t + keyPart); } catch (e) {}
   }
   document.querySelectorAll('#topTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   TABS.forEach(s => $('sec-' + s).style.display = s === t ? '' : 'none');
@@ -841,7 +848,29 @@ function schedule() {
   timer = setTimeout(load, iv);
 }
 
-async function remove(code) { await fetch('/api/holdings/' + code, { method: 'DELETE' }); load(); }
+async function remove(code) {
+  if (!await writeFetch('/api/holdings/' + code, { method: 'DELETE' })) return;
+  load();
+}
+
+// 写操作统一走这里：静态版没有后端，会返回 501 + 说明，必须提示出来，
+// 不能吞掉响应让人以为保存成功了。
+async function writeFetch(url, opts) {
+  let r;
+  try {
+    r = await fetch(url, opts);
+  } catch (e) {
+    alert('操作失败：' + (e && e.message ? e.message : e));
+    return false;
+  }
+  if (!r.ok) {
+    let msg = 'HTTP ' + r.status;
+    try { const j = await r.json(); msg = j.error || msg; } catch (e) {}
+    alert(msg);
+    return false;
+  }
+  return true;
+}
 
 // ==================== 排行 ====================
 async function loadRank() {
@@ -956,7 +985,10 @@ async function loadLedger() {
     tb.querySelectorAll('.del').forEach(b => b.onclick = () => delLedger(b.dataset.id));
   } catch (e) { showErr('记账加载失败：' + e.message); }
 }
-async function delLedger(id) { await fetch('/api/ledger/' + id, { method: 'DELETE' }); loadLedger(); }
+async function delLedger(id) {
+  if (!await writeFetch('/api/ledger/' + id, { method: 'DELETE' })) return;
+  loadLedger();
+}
 $('l-add').onclick = async () => {
   const kwv = $('lkw').value.trim();
   const code = lPicked ? lPicked.code : (kwv.match(/\d{6}/) || [null])[0];
@@ -1034,7 +1066,8 @@ $('add').onclick = async () => {
   const h = await jget('/api/holdings');
   h.holdings = h.holdings.filter(x => x.code !== code);
   h.holdings.push({ code, shares, cost: isNaN(cost) ? null : cost });
-  await fetch('/api/holdings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(h) });
+  const ok = await writeFetch('/api/holdings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(h) });
+  if (!ok) return;
   $('kw').value = $('shares').value = $('cost').value = ''; picked = null; load();
 };
 $('sync').onclick = async () => {
