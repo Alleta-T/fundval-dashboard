@@ -472,7 +472,9 @@
   }
 
   // ---- 解密（AES-GCM，格式与 Python 端一致：WebCrypto 密文含尾部 tag）----
-  var ready = (async function () {
+  var latest = null;          // 当前这份密文包（定时刷新会换掉它）
+
+  async function loadBundle(withFunds) {
     var bundle;
     var enc = await ORIGINAL_FETCH('bundle.enc.json', { cache: 'no-store' });
     if (enc.ok) {
@@ -497,18 +499,33 @@
       }
       bundle = await plainRes.json();
     }
-    // 基金索引是公开数据，不加密，单独取
-    try {
-      var r = await ORIGINAL_FETCH('funds.json', { cache: 'no-store' });
-      if (r.ok) bundle.funds = await r.json();
-    } catch (e) {}
+    // 基金索引是公开数据，不加密，单独取（1.9MB，不用每次重拉）
+    if (withFunds) {
+      try {
+        var r = await ORIGINAL_FETCH('funds.json', { cache: 'no-store' });
+        if (r.ok) bundle.funds = await r.json();
+      } catch (e) {}
+    }
     return bundle;
-  })().catch(function (e) {
+  }
+
+  var ready = loadBundle(true).then(function (b) {
+    latest = b;
+    return b;
+  }).catch(function (e) {
     if (e && e.message === 'no key') throw e;
     showFatal('数据解密失败', '密钥不对，或者包已经更新过。<br>请用最新保存的那条链接打开。<br><br><small>' +
       (e && e.message ? e.message : '') + '</small>');
     throw e;
   });
+
+  // 定时重拉密文包 —— 静态站没有后端，包是"发布时刻"的快照。
+  // 不重拉的话，页面会一直显示打开那一刻的数据（手机收藏了链接更明显）。
+  setInterval(function () {
+    loadBundle(false).then(function (b) {
+      latest = b;
+    }).catch(function () {});
+  }, 600000);
 
   // ---- 错误提示覆盖层 ----
   function showFatal(title, html) {
@@ -571,7 +588,9 @@
     if (path.indexOf('/api/') !== 0) return ORIGINAL_FETCH(url, opts);
 
     var method = (opts.method || 'GET').toUpperCase();
-    var bundleP = ready.then(function (b) {
+    // 取的是"当前"那份包 —— 定时刷新换上的新包也算
+    var bundleP = ready.then(function () {
+      var b = latest;
       window.__fvBundle = b;
       return b;
     });
